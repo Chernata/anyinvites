@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AnyInvites · Countdown orbit — self-drawing tails</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   AnyInvites · Romantic — Countdown orbit, "self-drawing" comet tails
+   Source node: 311:4903 (Counter). Ellipse tilt −12°.
+
+   MECHANIC
+   Star  : offset-path along the tilted ellipse, offset-distance 0→100%.
+   Tail  : the SAME path with pathLength="100" (dash units = % of arc).
+           dasharray [L, 100−L]; dashoffset animated over the same
+           duration/linear timing, so the dash head tracks the star.
+   Taper : N interpolated stroke layers (thick/short → thin/long),
+           generated once at load — smooth silhouette, no staircase.
+   Seam  : --lead (% of arc) pushes every dash head slightly AHEAD of
+           the star's center so the stroke tucks under the star body.
+   Sync  : star B + its layers share animation-delay −50% of orbit-dur.
+   The animation itself is 100% CSS; JS only stamps out the layers.
+   ===================================================================== */
+:root{
+  --orbit-dur: 6s;
+  --breathe-dur: 7s;
+  --lead: 0.4;             /* tail head sits just past star center — under its widest bulk */
+
+  --bg: #FCFAF5;
+  --ink: #28282A;          /* text/primary  */
+  --ink-soft: #888888;     /* text/secondary (sec digits) */
+  --sage: #7B9261;         /* accent/default */
+  --gold-line: rgba(201,168,106,.4);  /* border/gold */
+  --cream: #FBF7F1;        /* star + tail — exact mockup color, one solid tone */
+  --glow: 124,139,92;      /* sage rgb for the background bloom */
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  display:grid;place-items:center;
+  background:var(--bg);
+  font-family:'Libre Baskerville','Baskerville',Georgia,serif;
+}
+
+/* ---------- stage ---------- */
+.stage{position:relative;width:376px;height:276px}
+
+/* soft green bloom behind everything */
+.glow{
+  position:absolute;left:50%;top:50%;
+  width:340px;height:170px;border-radius:50%;
+  transform:translate(-50%,-50%) rotate(-12deg);
+  background:radial-gradient(ellipse at center,
+             rgba(var(--glow),.32) 0%,
+             rgba(var(--glow),.12) 46%,
+             transparent 72%);
+  filter:blur(2px);
+  animation:breathe var(--breathe-dur) ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{opacity:.75;transform:translate(-50%,-50%) rotate(-12deg) scale(1)}
+  50%    {opacity:1;  transform:translate(-50%,-50%) rotate(-12deg) scale(1.045)}
+}
+
+/* ---------- countdown ---------- */
+.timer{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;gap:10px;align-items:stretch;z-index:2;
+}
+.cell{display:flex;flex-direction:column;gap:6px;align-items:center}
+.num{
+  font-style:italic;font-size:56px;line-height:1.06;
+  letter-spacing:-.07em;color:var(--ink);white-space:nowrap;
+  position:relative;
+  /* clip only vertically for the roll; leave .25em of air on the right
+     so the italic overhang of the last digit isn't cut */
+  clip-path:inset(0 -.25em 0 -.05em);
+}
+.num .v{display:inline-block}
+/* soft roll: outgoing value drifts up and fades, incoming rises from below.
+   Both are centered in the cell's fixed width so nothing shifts mid-roll. */
+.num{text-align:center}
+.num .v.out{position:absolute;left:0;right:0;top:0;animation:num-out .42s cubic-bezier(.45,0,.55,1) forwards}
+.num .v.in {animation:num-in  .42s cubic-bezier(.22,.9,.3,1) both}
+@keyframes num-out{to{transform:translateY(-58%);opacity:0}}
+@keyframes num-in {from{transform:translateY(58%);opacity:0}to{transform:translateY(0);opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .num .v.out{display:none}
+  .num .v.in{animation:none}
+}
+.cell--sec .num{color:var(--ink-soft)}
+.unit{display:flex;flex-direction:column;gap:4px;align-items:center;width:100%}
+.unit .rule{height:1px;width:100%;background:var(--gold-line)}
+.unit .label{
+  font-weight:700;font-size:10px;line-height:15px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sage);
+}
+
+/* ---------- orbit (tails + sparkles), drawn ABOVE digits ---------- */
+.orbit-svg{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:visible}
+
+.tail{
+  fill:none;stroke:var(--cream);stroke-linecap:round;
+  stroke-dasharray:var(--L) calc(100 - var(--L));
+  stroke-dashoffset:calc(var(--L) - var(--lead));
+  animation:tail-draw var(--orbit-dur) linear infinite;
+}
+@keyframes tail-draw{
+  from{stroke-dashoffset:calc(var(--L) - var(--lead))}
+  to  {stroke-dashoffset:calc(var(--L) - var(--lead) - 100)}
+}
+.tail--b{animation-delay:calc(var(--orbit-dur) / -2)}
+
+/* ---------- sparkles ---------- */
+.sparkle{
+  position:absolute;left:0;top:0;width:1px;height:1px;z-index:4;
+  pointer-events:none;
+  offset-path:path("M 21.5 160.9 A 158 50 -12 1 1 330.5 95.1 A 158 50 -12 1 1 21.5 160.9");
+  offset-anchor:center;offset-rotate:0deg;
+  animation:orbit-travel var(--orbit-dur) linear infinite;
+}
+.sparkle--b{animation-delay:calc(var(--orbit-dur) / -2)}
+@keyframes orbit-travel{to{offset-distance:100%}}
+
+.core{display:block;transform:translate(-50%,-50%)}
+.star{display:block;width:42px;height:42px;color:var(--cream)}
+.star--sm{width:34px;height:34px}
+
+/* ---------- reduced motion: freeze at two mockup-like positions ---------- */
+@media (prefers-reduced-motion: reduce){
+  .glow,.tail,.sparkle{animation:none}
+  .sparkle   {offset-distance:36%}
+  .sparkle--b{offset-distance:86%}
+  .tail--a{stroke-dashoffset:calc(var(--L) - var(--lead) - 36)}
+  .tail--b{stroke-dashoffset:calc(var(--L) - var(--lead) - 86)}
+}
+
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="glow" aria-hidden="true"></div>
+
+  <div class="timer" role="timer" aria-label="Countdown to the wedding">
+    <div class="cell"><div class="num" data-unit="days"><span class="v">118</span></div><div class="unit"><div class="rule"></div><div class="label">Days</div></div></div>
+    <div class="cell"><div class="num" data-unit="hrs"><span class="v">08</span></div><div class="unit"><div class="rule"></div><div class="label">Hrs</div></div></div>
+    <div class="cell"><div class="num" data-unit="min"><span class="v">23</span></div><div class="unit"><div class="rule"></div><div class="label">Min</div></div></div>
+    <div class="cell cell--sec"><div class="num" data-unit="sec"><span class="v">23</span></div><div class="unit"><div class="rule"></div><div class="label">Sec</div></div></div>
+  </div>
+
+  <!-- tail layers are generated into this svg at load -->
+  <svg class="orbit-svg" viewBox="0 0 376 276" aria-hidden="true"></svg>
+
+  <!-- sparkles riding the same path -->
+  <div class="sparkle" aria-hidden="true">
+    <span class="core">
+      <svg class="star" viewBox="0 0 40 40">
+        <path fill="currentColor" d="M20 0 C21.6 9.2, 24.4 14.6, 30 16.4 C36 18.2, 38.6 19.2, 40 20
+                 C38.6 20.8, 36 21.8, 30 23.6 C24.4 25.4, 21.6 30.8, 20 40
+                 C18.4 30.8, 15.6 25.4, 10 23.6 C4 21.8, 1.4 20.8, 0 20
+                 C1.4 19.2, 4 18.2, 10 16.4 C15.6 14.6, 18.4 9.2, 20 0 Z"/>
+      </svg>
+    </span>
+  </div>
+  <div class="sparkle sparkle--b" aria-hidden="true">
+    <span class="core">
+      <svg class="star star--sm" viewBox="0 0 40 40">
+        <path fill="currentColor" d="M20 0 C21.6 9.2, 24.4 14.6, 30 16.4 C36 18.2, 38.6 19.2, 40 20
+                 C38.6 20.8, 36 21.8, 30 23.6 C24.4 25.4, 21.6 30.8, 20 40
+                 C18.4 30.8, 15.6 25.4, 10 23.6 C4 21.8, 1.4 20.8, 0 20
+                 C1.4 19.2, 4 18.2, 10 16.4 C15.6 14.6, 18.4 9.2, 20 0 Z"/>
+      </svg>
+    </span>
+  </div>
+</div>
+
+
+<script>
+/* ---------------------------------------------------------------------
+   Tail layer generator. Stamps out N stroked copies of the orbit path
+   with smoothly interpolated dash length (--L) and stroke width, so the
+   taper silhouette is continuous instead of stepped. Runs once at load;
+   the motion itself stays pure CSS (keyframes above).
+   --------------------------------------------------------------------- */
+const ORBIT_D = "M 21.5 160.9 A 158 50 -12 1 1 330.5 95.1 A 158 50 -12 1 1 21.5 160.9";
+const TAIL = {
+  layers: 12,     // interpolation steps — smooth cone, no staircase
+  length: 40,     // tail length, % of arc: stars sit 50% apart, star body
+                  // is ~3%, head lead 0.4% — so ~7% of clear air always
+                  // separates a tail's tip from the star ahead of it
+  baseW:  11,     // stroke width at the star (px)
+  tipW:   0.6,    // stroke width at the very tip (px)
+  minL:   2.2,    // shortest (thickest) layer length, % of arc
+};
+
+const svg = document.querySelector('.orbit-svg');
+const NS = 'http://www.w3.org/2000/svg';
+
+function buildTails(){
+  svg.innerHTML = '';
+  for (const variant of ['a','b']){
+    for (let i = 0; i < TAIL.layers; i++){
+      const t = i / (TAIL.layers - 1);                    // 0 = at star, 1 = tip
+      const L = TAIL.minL + (TAIL.length - TAIL.minL) * t;
+      const w = TAIL.tipW + (TAIL.baseW - TAIL.tipW) * Math.pow(1 - t, 1.35);
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', ORBIT_D);
+      p.setAttribute('pathLength', '100');
+      p.setAttribute('class', `tail tail--${variant}`);
+      p.style.setProperty('--L', L.toFixed(2));
+      p.style.strokeWidth = w.toFixed(2);
+      svg.appendChild(p);
+    }
+  }
+  syncOrbit();
+}
+
+/* Pin every orbit animation (stars + all tail layers) to the same
+   timeline origin. Elements added later would otherwise start their
+   animation "now" and drift out of phase with the stars — this keeps
+   the two star+tail groups locked exactly half a lap apart, always. */
+function syncOrbit(){
+  requestAnimationFrame(() => {
+    document.getAnimations().forEach(a => {
+      if (a.animationName === 'tail-draw' || a.animationName === 'orbit-travel'){
+        a.startTime = 0;
+      }
+    });
+  });
+}
+buildTails();
+
+/* ---------------------------------------------------------------------
+   Live countdown. TARGET is set on load to now + the mockup's remaining
+   time (118d 08:23:23) — replace with the real event date in production:
+   const TARGET = new Date('2026-10-29T14:00:00');
+   --------------------------------------------------------------------- */
+const TARGET = new Date(Date.now() + ((118*24 + 8)*60 + 23)*60*1000 + 23*1000);
+const cells = {};
+document.querySelectorAll('.num[data-unit]').forEach(n => cells[n.dataset.unit] = n);
+
+function setVal(unit, text){
+  const cell = cells[unit];
+  const cur = cell.querySelector('.v:not(.out)');
+  if (cur.textContent === text) return;
+  if (text.length !== +(cell.dataset.len || 0)) lockWidth(cell, text.length);
+  cur.classList.add('out');
+  cur.addEventListener('animationend', () => cur.remove(), {once:true});
+  const next = document.createElement('span');
+  next.className = 'v in';
+  next.textContent = text;
+  cell.appendChild(next);
+  next.addEventListener('animationend', () => next.classList.remove('in'), {once:true});
+}
+
+/* -------- width lock: cells sized to the widest digit × digit count,
+   so proportional italic digits never reflow the row while ticking ---- */
+let widestDigit = '0';
+const meas = document.createElement('span');
+meas.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+
+function lockWidth(cell, len){
+  cell.appendChild(meas);
+  meas.textContent = widestDigit.repeat(len);
+  cell.style.width = Math.ceil(meas.getBoundingClientRect().width + 1) + 'px';
+  cell.dataset.len = len;
+  meas.remove();
+}
+
+async function lockAllWidths(){
+  await document.fonts.ready;
+  const probe = Object.values(cells)[0];
+  probe.appendChild(meas);
+  let wmax = 0;
+  for (const d of '0123456789'){
+    meas.textContent = d.repeat(3);
+    const w = meas.getBoundingClientRect().width;
+    if (w > wmax){ wmax = w; widestDigit = d; }
+  }
+  meas.remove();
+  for (const cell of Object.values(cells)){
+    lockWidth(cell, cell.querySelector('.v:not(.out)').textContent.length);
+  }
+}
+lockAllWidths();
+
+function tick(){
+  let ms = Math.max(0, TARGET - Date.now());
+  const s = Math.floor(ms/1000);
+  setVal('days', String(Math.floor(s/86400)));
+  setVal('hrs',  String(Math.floor(s/3600)%24).padStart(2,'0'));
+  setVal('min',  String(Math.floor(s/60)%60).padStart(2,'0'));
+  setVal('sec',  String(s%60).padStart(2,'0'));
+}
+tick();
+setInterval(tick, 1000);
+
+</script>
+</body>
+</html>
